@@ -1,0 +1,38 @@
+
+
+ZMQ manager
+Author: Sungtae Kim <pchero21@gmail.com>
+
+INFO:
+- This moudule aims to replicate asterisk manager interface using zmq and json.
+- For now, it just support any json-type of message pass to ami.
+- This module has two sockets. One is for action&reply, and the other one is for eventy notify.
+
+
+DEPENDENCIES:
+- zmq
+- jansson
+ 
+REFERENCE:
+- Flavio [FlaPer87] Percoco Premoli <flaper87@flaper87.org>
+
+
+BUILDING:
+- cd asterisk-zmq/ && make
+
+INSTALLING:
+- cp build/zmq_manager.so ASTERISK_INSTALL_PATH/lib/asterisk/modules/
+
+USAGE:
+- Create a config file. See samples/zmq_manager.conf
+- Add: load => zmq_manager.so to the modules.conf file
+
+TODO:
+- Valgrind tests
+- Load/unload support.
+- Stabilization.
+
+LICENSING:
+- BSD License
+
+
