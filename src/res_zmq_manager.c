@@ -67,13 +67,16 @@ static void zmq_cmd_handler(void *data);
 static int ast_zmq_start(void);
 static char* handle_cli_zmq_manager_status(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
 static int zmq_evt_helper(int category, const char *event, char *content);
+static int line_parse(char* line);
+
 
 static struct ast_cli_entry cli_zmq_manager_evt[] = {
     AST_CLI_DEFINE(handle_cli_zmq_manager_status, "Shows useful status about zmq manager"),
 };
 
 
-static json_t*  g_json_res;  //!< action cmd response
+static json_t*  g_json_res;  //!< action cmd response(array)
+static json_t*  g_json_res_tmp; //!< action cmd response tmp
 static json_t*  g_json_evt;     //!< Event notify
 
 //static ast_mutex_t workers_mutex;
@@ -99,19 +102,86 @@ static int amihook_helper(int category, const char *event, char *content)
  */
 static int zmq_cmd_helper(int category, const char *event, char *content)
 {
+//    char* key;
+//    char* value;
+
+    char* line;
+    int   ret;
+    char* ptr;
+    char* str_tmp;
+    bool  flg_send;
+//    char* str_resp;
+
+
+    ast_log(LOG_NOTICE, "AMI Event: category[%d], event[%s], content[%s]\n", category, event, content);
+
+    if(g_json_res_tmp == NULL)
+    {
+        g_json_res_tmp = json_object();
+    }
+
+    flg_send = false;
+    for(str_tmp = content; ; str_tmp = NULL)
+    {
+        line = strtok_r(str_tmp, "\r\n", &ptr);
+        if(line == NULL)
+        {
+//            ERROR("Could not parse msg. msg[%s]\n", content);
+            break;
+        }
+
+        ret = line_parse(line);
+        if(ret == false)
+        {
+            ERROR("Could not parse line. line[%s]\n", line);
+            break;
+        }
+
+        // Check last line.
+        ret = strcmp(ptr, "\n\r\n");
+        if(ret == 0)
+        {
+            DEBUG("%s\n", "message end");
+            flg_send = true;
+            break;
+        }
+    }
+
+    if(flg_send == true)
+    {
+        ret = json_array_append(g_json_res, g_json_res_tmp);
+        json_decref(g_json_res_tmp);
+        g_json_res_tmp = NULL;
+        if(ret == -1)
+        {
+            ERROR("Could not append json. ret[%d]\n", ret);
+            return 0;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ *
+ * @param line
+ * @return
+ */
+static int line_parse(char* line)
+{
     char* key;
     char* value;
 
-    ast_log(LOG_NOTICE, "AMI Event: category[%d], event[%s], content[%s]\n", category, event, content);
-    key = strtok(content, ":");
-    value = strtok(NULL, "\r");
+    key = strtok(line, ":");
+    value = strtok(NULL, "\r\n");
     if(key == NULL)
     {
         return false;
     }
 
-    json_object_set(g_json_res, key, json_string(value));
-    return 0;
+    json_object_set(g_json_res_tmp, key, json_string(value));
+
+    return true;
 }
 
 /**
@@ -196,7 +266,7 @@ static void zmq_cmd_thread(void)
         buffer[size] = 0;
 
         zmq_data = calloc(1, sizeof(zmq_data_t));
-        zmq_data->zmq_sock = g_app.addr_cmd;
+        zmq_data->zmq_sock = g_app.sock_cmd;
 
         zmq_data->j_recv = recv_parse(buffer);
         if(zmq_data->j_recv == NULL)
@@ -384,17 +454,13 @@ static void zmq_cmd_handler(void *data)
     char* str_resp;
     char str_cmd[10000];
 
-    DEBUG("ast_worker!! data[%p]\n", data);
+    DEBUG("zmq_cmd_handler!! data[%p]\n", data);
 
     zmq_data = (zmq_data_t*)data;
 
     dumps = json_dumps(zmq_data->j_recv, JSON_INDENT(1));
     DEBUG("ast_start_worker. msg[%s]\n", dumps);
     free(dumps);
-
-    hook = calloc(1, sizeof(struct manager_custom_hook));
-    hook->file = __FILE__;
-    hook->helper = &zmq_cmd_helper;
 
     memset(str_cmd, 0x00, sizeof(str_cmd));
 
@@ -419,7 +485,19 @@ static void zmq_cmd_handler(void *data)
 
     DEBUG("action command. command[%s]\n", str_cmd);
 
-    g_json_res = json_object();
+    // Set hook
+    hook = calloc(1, sizeof(struct manager_custom_hook));
+    hook->file = __FILE__;
+    hook->helper = &zmq_cmd_helper;
+
+//    g_json_res = json_object();
+    json_decref(g_json_res_tmp);
+    json_decref(g_json_res);
+
+    g_json_res = NULL;
+    g_json_res_tmp = NULL;
+
+    g_json_res = json_array();
     ret = ast_hook_send_action(hook, str_cmd);
     if(ret != 0)
     {
@@ -435,6 +513,10 @@ static void zmq_cmd_handler(void *data)
     }
 
     ret = zmq_send(zmq_data->zmq_sock, str_resp, strlen(str_resp), 0);
+    if(ret == -1)
+    {
+        ERROR("Could not send message. err[%d:%s]\n", errno, strerror(errno));
+    }
     DEBUG("set_hook_send_action. ret[%d], msg[%s]\n", ret, str_resp);
 
     free(hook);
