@@ -75,9 +75,9 @@ static struct ast_cli_entry cli_zmq_manager_evt[] = {
 };
 
 
-static json_t*  g_json_res;  //!< action cmd response(array)
-static json_t*  g_json_res_tmp; //!< action cmd response tmp
-static json_t*  g_json_evt;     //!< Event notify
+static json_t*  g_json_res = NULL;  //!< action cmd response(array)
+static json_t*  g_json_res_tmp = NULL; //!< action cmd response tmp
+static json_t*  g_json_evt = NULL;     //!< Event notify
 
 //static ast_mutex_t workers_mutex;
 static AST_LIST_HEAD_STATIC(unload_strings, unload_string);
@@ -120,6 +120,8 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
         g_json_res_tmp = json_object();
     }
 
+    DEBUG("%s\n", "parsing start..");
+
     flg_send = false;
     for(str_tmp = content; ; str_tmp = NULL)
     {
@@ -130,12 +132,15 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
             break;
         }
 
+        DEBUG("Line[%s]\n", line);
+
         ret = line_parse(line);
         if(ret == false)
         {
             ERROR("Could not parse line. line[%s]\n", line);
             break;
         }
+        DEBUG("%s\n", "Line_parse ok");
 
         // Check last line.
         ret = strcmp(ptr, "\n\r\n");
@@ -146,9 +151,12 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
             break;
         }
     }
+    DEBUG("%s\n", "parsing ends..");
+
 
     if(flg_send == true)
     {
+        DEBUG("send flag on. flag[%d]\n", flg_send);
         ret = json_array_append(g_json_res, g_json_res_tmp);
         json_decref(g_json_res_tmp);
         g_json_res_tmp = NULL;
@@ -241,7 +249,7 @@ static json_t* recv_parse(char* msg)
 }
 
 /**
- * Main thread function.
+ * Command recv & response.
  *
  * Binds to the connection_string and waits for new messages.
  */
@@ -250,20 +258,53 @@ static void zmq_cmd_thread(void)
     char buffer[MAX_RCV_BUF_LEN];
     zmq_data_t* zmq_data;
     int size;
+    int ret;
+    int64_t opt;
+    size_t opt_size;
 
-    while (1)
+    while(1)
     {
-        memset(buffer, 0x00, sizeof(buffer));
-        size = zmq_recv(g_app.sock_cmd, buffer, MAX_RCV_BUF_LEN - 1, 0);
-        if(size == -1)
+        opt_size = sizeof(opt);
+
+        ret = zmq_getsockopt(g_app.sock_cmd, ZMQ_EVENTS, &opt, &opt_size);
+        if(ret == -1)
+        {
+            ERROR("Could not recv message. Err[%d]\n", ret);
+            continue;
+        }
+        if((opt & ZMQ_POLLIN) < 1)
         {
             continue;
         }
-        else if(size > (MAX_RCV_BUF_LEN -1))
+
+        DEBUG("ret[%d], opt[%ld]\n", ret, opt);
+
+//        if((opt & ZMQ_POLLIN) > 0)
+
+
+
+        DEBUG("Recv thread. sock[%p], buffer[%p]\n", g_app.sock_cmd, buffer);
+
+        memset(buffer, 0x00, sizeof(buffer));
+        // todo: need to find out. why die... -_-;;;
+        size = zmq_recv(g_app.sock_cmd, buffer, MAX_RCV_BUF_LEN - 1, 0);
+
+        DEBUG("Recv cmd. size[%d]\n", size);
+
+        if(size == -1)
         {
+            ERROR("Could not get the cmd. err[%d:%s]\n", errno, strerror(errno));
+            continue;
+        }
+        else if(size >= (MAX_RCV_BUF_LEN -1))
+        {
+            DEBUG("Size over. size[%d]\n", size);
             size = MAX_RCV_BUF_LEN - 1;
         }
+        DEBUG("%s", "bug spot...\n");
+
         buffer[size] = 0;
+        DEBUG("Recv cmd. msg[%s]\n", buffer);
 
         zmq_data = calloc(1, sizeof(zmq_data_t));
         zmq_data->zmq_sock = g_app.sock_cmd;
@@ -276,6 +317,8 @@ static void zmq_cmd_thread(void)
             continue;
         }
         zmq_cmd_handler(zmq_data);
+        json_decref(zmq_data->j_recv);
+        free(zmq_data);
     }
 }
 
@@ -487,15 +530,22 @@ static void zmq_cmd_handler(void *data)
 
     // Set hook
     hook = calloc(1, sizeof(struct manager_custom_hook));
-    hook->file = __FILE__;
+//    hook->file = __FILE__;
+    hook->file = NULL;
     hook->helper = &zmq_cmd_helper;
 
 //    g_json_res = json_object();
-    json_decref(g_json_res_tmp);
-    json_decref(g_json_res);
+    if(g_json_res_tmp != NULL)
+    {
+        json_decref(g_json_res_tmp);
+        g_json_res_tmp = NULL;
+    }
 
-    g_json_res = NULL;
-    g_json_res_tmp = NULL;
+    if(g_json_res != NULL)
+    {
+        json_decref(g_json_res);
+        g_json_res = NULL;
+    }
 
     g_json_res = json_array();
     ret = ast_hook_send_action(hook, str_cmd);
@@ -505,7 +555,7 @@ static void zmq_cmd_handler(void *data)
         return;
     }
 
-    str_resp = json_dumps(g_json_res, JSON_INDENT(1));
+    str_resp = json_dumps(g_json_res, JSON_INDENT(0));
     json_decref(g_json_res);
     if(str_resp == NULL)
     {
