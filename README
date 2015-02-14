@@ -25,10 +25,12 @@ INSTALLING:
 
 USAGE:
 - Create a config file. See samples/zmq_manager.conf
+-- cp samples/zmq_manager.conf /etc/asterisk
 - Add: load => zmq_manager.so to the modules.conf file
+-- echo "load => zmq_manager.so" >> /etc/asterisk/modules.conf
 
 TODO:
-- Valgrind tests
+- Valgrind test.
 - Load/unload support.
 - Stabilization.
 
