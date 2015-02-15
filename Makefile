@@ -46,8 +46,8 @@ JANSSON_LIB=$(shell $(PKGCONFIG)  jansson --libs  2>/dev/null)
 ZMQ_DEFS=$(shell $(PKGCONFIG) libzmq --cflags 2>/dev/null)
 ZMQ_LIB=$(shell $(PKGCONFIG)  libzmq --libs  2>/dev/null)
 
-CFLAGS_res_zmq_manager.so += $(ZMQ_DEFS) $(JANSSON_DEFS)
-LDLIBS_res_zmq_manager.so = $(OSLDLIBS) $(ZMQ_LIB) $(JANSSON_LIB)
+CFLAGS_res_zmq_manager.so += $(ZMQ_DEFS)
+LDLIBS_res_zmq_manager.so = $(OSLDLIBS) $(ZMQ_LIB)
 
 $(TARGETDIR_res_zmq_manager.so)/res_zmq_manager.so: $(TARGETDIR_res_zmq_manager.so) $(OBJS_res_zmq_manager.so) $(DEPLIBS_res_zmq_manager.so)
 	$(LINK.c) $(CFLAGS_res_zmq_manager.so) $(CPPFLAGS_res_zmq_manager.so) -o $@ $(OBJS_res_zmq_manager.so) $(SHAREDLIB_FLAGS_res_zmq_manager.so) $(LDLIBS_res_zmq_manager.so)

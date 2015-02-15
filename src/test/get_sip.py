@@ -16,6 +16,7 @@ socket = context.socket(zmq.REQ)
 socket.connect ("tcp://localhost:%s" % port)
 if len(sys.argv) > 2:
     socket.connect ("tcp://localhost:%s" % port1)
+print "Connected!"
 
 #for request in range (1,10):
 #print "Sending request ", request,"..."
