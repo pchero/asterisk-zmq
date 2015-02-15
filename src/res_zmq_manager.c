@@ -13,7 +13,8 @@
 #include <stdbool.h>
 
 #include <zmq.h>
-#include <jansson.h>
+//#include <jansson.h>
+#include <unistd.h>
 
 #include <asterisk.h>
 #include <asterisk/module.h>
@@ -23,6 +24,7 @@
 #include <asterisk/config.h>
 #include <asterisk/channel.h>
 #include <asterisk/ast_version.h>
+#include <asterisk/json.h>
 
 ASTERISK_FILE_VERSION(__FILE__, "$Revision: 338557 $")
 
@@ -45,7 +47,7 @@ struct ast_zmq_pthread_data {
 typedef struct zmq_data_t_
 {
     void* zmq_sock;     //!< zmq socket
-    json_t* j_recv;     //!< zmq recv data
+    struct ast_json* j_recv;     //!< zmq recv data
 } zmq_data_t;
 
 struct app_
@@ -75,9 +77,9 @@ static struct ast_cli_entry cli_zmq_manager_evt[] = {
 };
 
 
-static json_t*  g_json_res = NULL;  //!< action cmd response(array)
-static json_t*  g_json_res_tmp = NULL; //!< action cmd response tmp
-static json_t*  g_json_evt = NULL;     //!< Event notify
+static struct ast_json*  g_json_res = NULL;  //!< action cmd response(array)
+static struct ast_json*  g_json_res_tmp = NULL; //!< action cmd response tmp
+static struct ast_json*  g_json_evt = NULL;     //!< Event notify
 
 //static ast_mutex_t workers_mutex;
 static AST_LIST_HEAD_STATIC(unload_strings, unload_string);
@@ -117,7 +119,7 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
 
     if(g_json_res_tmp == NULL)
     {
-        g_json_res_tmp = json_object();
+        g_json_res_tmp = ast_json_object_create();
     }
 
     DEBUG("%s\n", "parsing start..");
@@ -157,8 +159,8 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
     if(flg_send == true)
     {
         DEBUG("send flag on. flag[%d]\n", flg_send);
-        ret = json_array_append(g_json_res, g_json_res_tmp);
-        json_decref(g_json_res_tmp);
+        ret = ast_json_array_append(g_json_res, g_json_res_tmp);
+        ast_json_unref(g_json_res_tmp);
         g_json_res_tmp = NULL;
         if(ret == -1)
         {
@@ -187,7 +189,7 @@ static int line_parse(char* line)
         return false;
     }
 
-    json_object_set(g_json_res_tmp, key, json_string(value));
+    ast_json_object_set(g_json_res_tmp, key, ast_json_string_create(value));
 
     return true;
 }
@@ -234,12 +236,12 @@ static int load_config_string(struct ast_config *cfg, const char *category, cons
  * @param msg
  * @return Success:json_t*, Fail:NULL
  */
-static json_t* recv_parse(char* msg)
+static struct ast_json* recv_parse(char* msg)
 {
-    json_t* j_out;
-    json_error_t error;
+    struct ast_json* j_out;
+    struct ast_json_error error;
 
-    j_out = json_loads(msg, 0, &error);
+    j_out = ast_json_load_buf(msg, 0, &error);
     if(j_out == NULL)
     {
         DEBUG("Could not convert json. msg[%s]\n", msg);
@@ -264,61 +266,70 @@ static void zmq_cmd_thread(void)
 
     while(1)
     {
-        opt_size = sizeof(opt);
+        char* tmp = "{\"test\": \"123\"}";
+        char* tmp_out;
 
-        ret = zmq_getsockopt(g_app.sock_cmd, ZMQ_EVENTS, &opt, &opt_size);
-        if(ret == -1)
-        {
-            ERROR("Could not recv message. Err[%d]\n", ret);
-            continue;
-        }
-        if((opt & ZMQ_POLLIN) < 1)
-        {
-            continue;
-        }
+        struct ast_json* j_out;
+        struct ast_json_error error;
 
-        DEBUG("ret[%d], opt[%ld]\n", ret, opt);
+        j_out = ast_json_load_buf(tmp, 0, &error);
+        tmp_out = ast_json_dump_string(j_out);
 
-//        if((opt & ZMQ_POLLIN) > 0)
+        DEBUG("%s\n", tmp_out);
+        free(tmp_out);
 
+        usleep(10000);
 
-
-        DEBUG("Recv thread. sock[%p], buffer[%p]\n", g_app.sock_cmd, buffer);
-
-        memset(buffer, 0x00, sizeof(buffer));
-        // todo: need to find out. why die... -_-;;;
-        size = zmq_recv(g_app.sock_cmd, buffer, MAX_RCV_BUF_LEN - 1, 0);
-
-        DEBUG("Recv cmd. size[%d]\n", size);
-
-        if(size == -1)
-        {
-            ERROR("Could not get the cmd. err[%d:%s]\n", errno, strerror(errno));
-            continue;
-        }
-        else if(size >= (MAX_RCV_BUF_LEN -1))
-        {
-            DEBUG("Size over. size[%d]\n", size);
-            size = MAX_RCV_BUF_LEN - 1;
-        }
-        DEBUG("%s", "bug spot...\n");
-
-        buffer[size] = 0;
-        DEBUG("Recv cmd. msg[%s]\n", buffer);
-
-        zmq_data = calloc(1, sizeof(zmq_data_t));
-        zmq_data->zmq_sock = g_app.sock_cmd;
-
-        zmq_data->j_recv = recv_parse(buffer);
-        if(zmq_data->j_recv == NULL)
-        {
-            ERROR("Could not parse msg. msg[%s]\n", buffer);
-            zmq_send(zmq_data->zmq_sock, "Could not parse msg.", strlen("Could not parse msg."), 0);
-            continue;
-        }
-        zmq_cmd_handler(zmq_data);
-        json_decref(zmq_data->j_recv);
-        free(zmq_data);
+//        opt_size = sizeof(opt);
+//
+//        ret = zmq_getsockopt(g_app.sock_cmd, ZMQ_EVENTS, &opt, &opt_size);
+//        if(ret == -1)
+//        {
+//            ERROR("Could not recv message. Err[%d]\n", ret);
+//            continue;
+//        }
+//        if((opt & ZMQ_POLLIN) < 1)
+//        {
+//            usleep(100);    // just let's break
+//            continue;
+//        }
+//
+//        DEBUG("ret[%d], opt[%ld]\n", ret, opt);
+//        DEBUG("Recv thread. sock[%p], buffer[%p]\n", g_app.sock_cmd, buffer);
+//
+//        memset(buffer, 0x00, sizeof(buffer));
+//        // todo: need to find out. why die... -_-;;;
+//        size = zmq_recv(g_app.sock_cmd, buffer, MAX_RCV_BUF_LEN - 1, 0);
+//        DEBUG("Recv cmd. size[%d]\n", size);
+//        if(size == -1)
+//        {
+//            ERROR("Could not get the cmd. err[%d:%s]\n", errno, strerror(errno));
+//            continue;
+//        }
+//        else if(size >= (MAX_RCV_BUF_LEN -1))
+//        {
+//            DEBUG("Size over. size[%d]\n", size);
+//            size = MAX_RCV_BUF_LEN - 1;
+//        }
+//
+//        DEBUG("%s", "bug spot...\n");
+//
+//        buffer[size] = 0;
+//        DEBUG("Recv cmd. msg[%s]\n", buffer);
+//
+//        zmq_data = calloc(1, sizeof(zmq_data_t));
+//        zmq_data->zmq_sock = g_app.sock_cmd;
+//
+//        zmq_data->j_recv = recv_parse(buffer);
+//        if(zmq_data->j_recv == NULL)
+//        {
+//            ERROR("Could not parse msg. msg[%s]\n", buffer);
+//            zmq_send(zmq_data->zmq_sock, "Could not parse msg.", strlen("Could not parse msg."), 0);
+//            continue;
+//        }
+//        zmq_cmd_handler(zmq_data);
+//        json_decref(zmq_data->j_recv);
+//        free(zmq_data);
     }
 }
 
@@ -487,90 +498,130 @@ static int load_module(void)
  */
 static void zmq_cmd_handler(void *data)
 {
-    int ret;
-    json_t* j_tmp;
-    zmq_data_t* zmq_data;
-    char* dumps;
-    struct manager_custom_hook* hook;
-    const char *key;
-    json_t *value;
-    char* str_resp;
-    char str_cmd[10000];
 
-    DEBUG("zmq_cmd_handler!! data[%p]\n", data);
+    zmq_data_t* zmq_data;
+    struct ast_json*     j_tmp;
+    char*       tmp;
 
     zmq_data = (zmq_data_t*)data;
 
-    dumps = json_dumps(zmq_data->j_recv, JSON_INDENT(1));
-    DEBUG("ast_start_worker. msg[%s]\n", dumps);
-    free(dumps);
+    DEBUG("%s\n", "test start4.");
 
-    memset(str_cmd, 0x00, sizeof(str_cmd));
+//    tmp = malloc(1000);
 
-    // Get action
-    j_tmp = json_object_get(zmq_data->j_recv, "action");
-    if(j_tmp == NULL)
-    {
-        ERROR("%s\n", "Could not get the action.");
-    }
-    sprintf(str_cmd, "action:%s\n", json_string_value(j_tmp));
+    j_tmp = ast_json_deep_copy(zmq_data->j_recv);
+    tmp = ast_json_dump_string(j_tmp);
+//    DEBUG("dumps[%s]\n", tmp);
+//
+    free(tmp);
 
-    json_object_foreach(zmq_data->j_recv, key, value)
-    {
-        ret = strcmp(key, "action");
-        if(ret == 0)
-        {
-            continue;
-        }
-        sprintf(str_cmd, "%s%s:%s\n", str_cmd, key, json_string_value(value));
-    }
-    sprintf(str_cmd, "%s\n", str_cmd);
+    DEBUG("%s\n", "test end.");
 
-    DEBUG("action command. command[%s]\n", str_cmd);
 
-    // Set hook
-    hook = calloc(1, sizeof(struct manager_custom_hook));
-//    hook->file = __FILE__;
-    hook->file = NULL;
-    hook->helper = &zmq_cmd_helper;
-
-//    g_json_res = json_object();
-    if(g_json_res_tmp != NULL)
-    {
-        json_decref(g_json_res_tmp);
-        g_json_res_tmp = NULL;
-    }
-
-    if(g_json_res != NULL)
-    {
-        json_decref(g_json_res);
-        g_json_res = NULL;
-    }
-
-    g_json_res = json_array();
-    ret = ast_hook_send_action(hook, str_cmd);
-    if(ret != 0)
-    {
-        free(hook);
-        return;
-    }
-
-    str_resp = json_dumps(g_json_res, JSON_INDENT(0));
-    json_decref(g_json_res);
-    if(str_resp == NULL)
-    {
-        return;
-    }
-
-    ret = zmq_send(zmq_data->zmq_sock, str_resp, strlen(str_resp), 0);
-    if(ret == -1)
-    {
-        ERROR("Could not send message. err[%d:%s]\n", errno, strerror(errno));
-    }
-    DEBUG("set_hook_send_action. ret[%d], msg[%s]\n", ret, str_resp);
-
-    free(hook);
-    free(str_resp);
+//    int ret;
+//    json_t* j_tmp;
+//    zmq_data_t* zmq_data;
+//    char* dumps;
+//    struct manager_custom_hook* hook;
+//    const char *key;
+//    json_t *value;
+//    char* str_resp;
+//    char str_cmd[10000];
+//
+//    DEBUG("zmq_cmd_handler!! data[%p]\n", data);
+//
+//    zmq_data = (zmq_data_t*)data;
+//
+//    // just for log
+//    j_tmp = json_deep_copy(zmq_data->j_recv);
+//    dumps = json_dumps(j_tmp, JSON_INDENT(1));
+//    if(dumps == NULL)
+//    {
+//        ERROR("%s\n", "Could not parsing.");
+//        return;
+//    }
+////    DEBUG("ast_start_worker. msg[%s]\n", dumps);
+//    DEBUG("%s", "point_2\n");
+//    DEBUG("%s", "point_3\n");
+////    ast_free_ptr(dumps);
+////    json_decref(j_tmp);
+//
+//    char* tmp_str = malloc(1000);
+//    free(tmp_str);
+//    tmp_str = malloc(1000);
+//        free(tmp_str);
+//        tmp_str = malloc(1000);
+//            free(tmp_str);
+//
+//    DEBUG("%s", "point_1\n");
+//    memset(str_cmd, 0x00, sizeof(str_cmd));
+//    // Get action
+//    j_tmp = json_object_get(zmq_data->j_recv, "action");
+//    if(j_tmp == NULL)
+//    {
+//        ERROR("%s\n", "Could not get the action.");
+//        return;
+//    }
+//    sprintf(str_cmd, "action:%s\n", json_string_value(j_tmp));
+//
+////    ast_free_ptr(dumps);
+//
+//    json_object_foreach(zmq_data->j_recv, key, value)
+//    {
+//        ret = strcmp(key, "action");
+//        if(ret == 0)
+//        {
+//            continue;
+//        }
+//        sprintf(str_cmd, "%s%s:%s\n", str_cmd, key, json_string_value(value));
+//    }
+//    sprintf(str_cmd, "%s\n", str_cmd);
+//
+//    DEBUG("action command. command[%s]\n", str_cmd);
+//
+//    // Set hook
+//    hook = calloc(1, sizeof(struct manager_custom_hook));
+////    hook->file = __FILE__;
+//    hook->file = NULL;
+//    hook->helper = &zmq_cmd_helper;
+//
+////    g_json_res = json_object();
+//    if(g_json_res_tmp != NULL)
+//    {
+//        json_decref(g_json_res_tmp);
+//        g_json_res_tmp = NULL;
+//    }
+//
+//    if(g_json_res != NULL)
+//    {
+//        json_decref(g_json_res);
+//        g_json_res = NULL;
+//    }
+//
+//    g_json_res = json_array();
+//    ret = ast_hook_send_action(hook, str_cmd);
+//    if(ret != 0)
+//    {
+//        free(hook);
+//        return;
+//    }
+//
+//    str_resp = json_dumps(g_json_res, JSON_INDENT(0));
+//    json_decref(g_json_res);
+//    if(str_resp == NULL)
+//    {
+//        return;
+//    }
+//
+//    ret = zmq_send(zmq_data->zmq_sock, str_resp, strlen(str_resp), 0);
+//    if(ret == -1)
+//    {
+//        ERROR("Could not send message. err[%d:%s]\n", errno, strerror(errno));
+//    }
+//    DEBUG("set_hook_send_action. ret[%d], msg[%s]\n", ret, str_resp);
+//
+//    free(hook);
+//    free(str_resp);
 }
 
 /**
@@ -584,11 +635,33 @@ static int ast_zmq_start(void)
 
     // cmd sock
     DEBUG("%s\n", "start zmq cmd thread");
-    ret = ast_pthread_create_background(&g_app.pth_cmd, NULL, (void*)&zmq_cmd_thread, NULL);
-    if(ret > 0)
+//    ret = ast_pthread_create_background(&g_app.pth_cmd, NULL, (void*)&zmq_cmd_thread, NULL);
+//    if(ret > 0)
+//    {
+//        ERROR("Unable to launch thread for action cmd. err[%s]\n", strerror(errno));
+//        return false;
+//    }
+
+    while(1)
     {
-        ERROR("Unable to launch thread for action cmd. err[%s]\n", strerror(errno));
-        return false;
+        char* tmp = "{\"test\": \"333\"}";
+        char* tmp_out;
+
+        struct ast_json* j_out;
+        struct ast_json* j_tmp;
+        struct ast_json_error error;
+
+        j_out = ast_json_load_buf(tmp, strlen(tmp), &error);
+        j_tmp = ast_json_deep_copy(j_out);
+        tmp_out = ast_json_dump_string(j_tmp);
+
+        DEBUG("%s\n", tmp_out);
+        ast_json_free(tmp_out);
+
+        DEBUG("%s\n", "good test");
+
+
+        usleep(10000);
     }
 
     // evt sock
@@ -619,8 +692,8 @@ static void trim(char * s)
 static int zmq_evt_helper(int category, const char *event, char *content)
 {
 
-    json_t* j_out;
-    json_t* j_tmp;
+    struct ast_json* j_out;
+    struct ast_json* j_tmp;
     int i;
     int ret;
     int cnt;

@@ -1,0 +1,21 @@
+
+SIPpeers
+Synopsis
+
+List SIP peers (text format).
+Description
+
+Lists SIP peers in text format with details on current status. Peerlist will follow as separate events, followed by a final event called PeerlistComplete.
+Syntax
+
+    Action: SIPpeers
+    ActionID: <value>
+
+Arguments
+
+    ActionID - ActionID for this transaction. Will be returned.
+
+See Also
+Import Version
+
+This documentation was imported from Asterisk Version SVN-branch-1.8-r404456

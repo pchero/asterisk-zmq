@@ -26,8 +26,8 @@ INSTALLING:
 USAGE:
 - Create a config file. See samples/zmq_manager.conf
 -- cp samples/zmq_manager.conf /etc/asterisk
-- Add: load => zmq_manager.so to the modules.conf file
--- echo "load => zmq_manager.so" >> /etc/asterisk/modules.conf
+- Add: load => res_zmq_manager.so to the modules.conf file
+-- echo "load => res_zmq_manager.so" >> /etc/asterisk/modules.conf
 
 TODO:
 - Valgrind test.
