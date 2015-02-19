@@ -7,6 +7,14 @@ INFO:
 - This moudule aims to replicate asterisk manager interface using zmq and json.
 - For now, it just support any json-type of message pass to ami.
 - This module has two sockets. One is for action&reply, and the other one is for eventy notify.
+- It tested with asterisk-13.2.0
+
+DESCRIPTION:
+- ZMQ manager uses 2 zmq sockets.
+- zmq_cmd, zmq_evt.
+- Default address is (addr_cmd=tcp://*:967, addr_evt=tcp://*:968)
+- zmq_cmd designed for REQ-REP pattern.
+- zmq_evt designed for REP-SUB pattern.
 
 
 DEPENDENCIES:
@@ -29,6 +37,25 @@ USAGE:
 - Add: load => res_zmq_manager.so to the modules.conf file
 -- echo "load => res_zmq_manager.so" >> /etc/asterisk/modules.conf
 
+
+TEST:
+- $ python src/test/get_sip.py
+
+SAMPLE:
+- Send AMI message in json style, to tcp://localhost967
+-- {"Action": "SIPpeers", "ActionID": "125"}
+- It will reply AMI response in json style.(Json array)
+[
+    {"Response":"Success"},
+    {"EventList":"start"},
+    {"Message":"Peer status list will follow"},
+    {"IPport":"0","AutoComedia":"no","Dynamic":"yes","TextSupport":"no","Event":"PeerEntry","ChanObjectType":"peer","Status":"Unmonitored","Channeltype":"SIP","AutoForcerport":"yes","Comedia":"no","VideoSupport":"no","IPaddress":"-none-","ObjectName":"test-01","Forcerport":"no","ACL":"no","RealtimeDevice":"no","Description":""},
+    {"IPport":"0","AutoComedia":"no","Dynamic":"yes","TextSupport":"no","Event":"PeerEntry","ChanObjectType":"peer","Status":"Unmonitored","Channeltype":"SIP","AutoForcerport":"yes","Comedia":"no","VideoSupport":"no","IPaddress":"-none-","ObjectName":"test-02","Forcerport":"no","ACL":"no","RealtimeDevice":"no","Description":""},
+    {"IPport":"0","AutoComedia":"no","Dynamic":"yes","TextSupport":"no","Event":"PeerEntry","ChanObjectType":"peer","Status":"Unmonitored","Channeltype":"SIP","AutoForcerport":"yes","Comedia":"no","VideoSupport":"no","IPaddress":"-none-","ObjectName":"test-03","Forcerport":"no","ACL":"no","RealtimeDevice":"no","Description":""},
+    {"Event":"PeerlistComplete"},
+    {"EventList":"Complete","ListItems":"3"}
+]
+
 TODO:
 - Valgrind test.
 - Load/unload support.
@@ -36,5 +63,4 @@ TODO:
 
 LICENSING:
 - BSD License
-
 
