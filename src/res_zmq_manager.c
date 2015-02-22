@@ -402,7 +402,6 @@ static int _load_module(void)
     struct ast_config *cfg;
     struct ast_flags config_flags = {0};
     int ret;
-    void*  context;
 
     g_app = calloc(1, sizeof(struct app_));
 
@@ -439,15 +438,15 @@ static int _load_module(void)
 
     ast_config_destroy(cfg);
 
-    context = zmq_ctx_new();
+    g_app->zmq_ctx = zmq_ctx_new();
 
     // Make cmd socket
-    g_app->sock_cmd = zmq_socket(context, ZMQ_REP);
+    g_app->sock_cmd = zmq_socket(g_app->zmq_ctx, ZMQ_REP);
     if(g_app->sock_cmd == NULL)
     {
         ERROR("Couldn't created the new socket [%s]\n", strerror(errno));
         zmq_close (g_app->sock_cmd);
-        zmq_term (context);
+        zmq_term (g_app->zmq_ctx);
         return false;
     }
 
@@ -456,17 +455,17 @@ static int _load_module(void)
     {
         ERROR("Couldn't bind [%s]\n", strerror(errno));
         zmq_close (g_app->sock_cmd);
-        zmq_term (context);
+        zmq_term (g_app->zmq_ctx);
         return false;
     }
 
     // Make evt socket
-    g_app->sock_evt = zmq_socket(context, ZMQ_PUB);
+    g_app->sock_evt = zmq_socket(g_app->zmq_ctx, ZMQ_PUB);
     if(g_app->sock_evt == NULL)
     {
         ERROR("Couldn't created the evt socket [%s]\n", strerror(errno));
         zmq_close (g_app->sock_evt);
-        zmq_term (context);
+        zmq_term (g_app->zmq_ctx);
         return false;
     }
 
@@ -475,7 +474,7 @@ static int _load_module(void)
     {
         ERROR("Couldn't bind [%s]\n", strerror(errno));
         zmq_close (g_app->sock_evt);
-        zmq_term (context);
+        zmq_term (g_app->zmq_ctx);
         return false;
     }
 
