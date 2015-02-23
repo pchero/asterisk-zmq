@@ -661,7 +661,6 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
     j_res = parse_msg(g_cmd_buf);
 
     res = ast_json_dump_string(j_res);
-    DEBUG("Check dump. buf[%s]\n", res);
     ast_json_unref(j_res);
     if(res == NULL)
     {
