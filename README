@@ -13,8 +13,8 @@ DESCRIPTION:
 - ZMQ manager uses 2 zmq sockets.
 - zmq_cmd, zmq_evt.
 - Default address is (addr_cmd=tcp://*:967, addr_evt=tcp://*:968)
-- zmq_cmd designed for REQ-REP pattern.
-- zmq_evt designed for REP-SUB pattern.
+- zmq_cmd designed for REQ-REP pattern. (For AMI Action)
+- zmq_evt designed for PUB-SUB pattern. (For AMI Event)
 
 
 DEPENDENCIES:
