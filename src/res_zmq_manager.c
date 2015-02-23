@@ -36,16 +36,17 @@ ASTERISK_FILE_VERSION(__FILE__, "$Revision: 338557 $")
 //static struct app_ g_app;
 struct app_* g_app = NULL;
 
-static struct ast_json*  g_json_res = NULL;  //!< action cmd response(array)
+//static struct ast_json*  g_json_res = NULL;  //!< action cmd response(array)
+static char*             g_cmd_buf = NULL;  //!< action cmd buffer
 
 static void zmq_cmd_thread(void);
 static void trim(char * s);
-static int zmq_cmd_handler(zmq_data_t* data);
+static char* zmq_cmd_handler(struct ast_json* j_recv);
 static int ast_zmq_start(void);
 static char* handle_cli_zmq_manager_status(struct ast_cli_entry *e, int cmd, struct ast_cli_args *a);
 static int zmq_evt_helper(int category, const char *event, char *content);
 static int zmq_cmd_helper(int category, const char *event, char *content);
-static int line_parse(char* line);
+static struct ast_json* parse_msg(char* msg);
 
 
 static struct ast_cli_entry cli_zmq_manager_evt[] = {
@@ -73,76 +74,177 @@ static int amihook_helper(int category, const char *event, char *content)
  */
 static int zmq_cmd_helper(int category, const char *event, char *content)
 {
+    char* tmp;
     int   ret;
-    int   i, j;
-    char* key;
-    char* value;
-    char  tmp[1024];
-    char* dump;
-    struct ast_json*    j_tmp;
 
-    ast_log(LOG_NOTICE, "AMI Event: category[%d], event[%s], content[%s]\n", category, event, content);
-    ret = strlen(content);
-    if(ret < 3)
+    ast_log(LOG_DEBUG, "AMI Event: len[%lu], category[%d], event[%s], content[%s]\n", strlen(content), category, event, content);
+
+    if(g_cmd_buf == NULL)
     {
-        return 1;
+        ret = asprintf(&tmp, "%s", content);
+    }
+    else
+    {
+        ret = asprintf(&tmp, "%s%s", g_cmd_buf, content);
     }
 
-    i = 0;
-    j = 0;
-    memset(tmp, 0x00, sizeof(tmp));
-    j_tmp = ast_json_object_create();
-    for(i = 0; i < strlen(content); i++)
+    if(g_cmd_buf != NULL)
     {
-        if(content[i] == '\r')
+        ast_free(g_cmd_buf);
+    }
+
+    ret = asprintf(&g_cmd_buf, "%s", tmp);
+    if(ret == -1)
+    {
+        ast_log(LOG_ERROR, "Could not allocate string. err[%d:%s]\n", errno, strerror(errno));
+        return 0;
+    }
+    ast_free(tmp);
+
+    return 1;
+}
+
+/**
+ *
+ * @param msg
+ * @return
+ */
+static struct ast_json* parse_msg(char* msg)
+{
+    struct ast_json* j_out;
+    struct ast_json* j_tmp;
+    int i, j;
+    int ret;
+    char  tmp[2048];
+    char* key;
+    char* value;
+    char* dump;
+
+    ast_log(AST_LOG_DEBUG, "Parse ami message. msg[%s]\n", msg);
+
+    memset(tmp, 0x00, sizeof(tmp));
+
+    j_out = ast_json_array_create();
+    j_tmp = ast_json_object_create();
+    for(i = 0, j = 0; i < strlen(msg); i++)
+    {
+        if((msg[i] == '\r') && (msg[i + 1] == '\n'))
         {
-            if(content[i + 1] == '\n')
+            // Check /r/n/r/n
+            ret = strlen(tmp);
+            if(ret == 0)
             {
-                ret = strlen(tmp);
-                if(ret == 0)
-                {
-                    break;
-                }
+                ret = ast_json_array_append(j_out, ast_json_deep_copy(j_tmp));
+                ast_json_unref(j_tmp);
+                j_tmp = NULL;
 
-                value = strdup(tmp);
-                dump = value;
-                key = strsep(&value, ":");
-                if(key == NULL)
-                {
-                    free(dump);
-                    continue;
-                }
-
-                trim(key);
-                trim(value);
-                ast_json_object_set(j_tmp, key, ast_json_string_create(value));
-
-                free(dump);
-                memset(tmp, 0x00, sizeof(tmp));
+                j_tmp = ast_json_object_create();
                 j = 0;
                 i++;
-
-
                 continue;
             }
+
+            value = strdup(tmp);
+            dump = value;
+            key = strsep(&value, ":");
+            if(key == NULL)
+            {
+                free(dump);
+                continue;
+            }
+
+            trim(key);
+            trim(value);
+            ast_json_object_set(j_tmp, key, ast_json_string_create(value));
+
+            free(dump);
+            memset(tmp, 0x00, sizeof(tmp));
+            j = 0;
+            i++;
+            continue;
         }
-        tmp[j] = content[i];
+        tmp[j] = msg[i];
         j++;
     }
 
-    dump = ast_json_dump_string(j_tmp);
-    DEBUG("Parsing dump. dump[%s]\n", dump);
-    ast_json_free(dump);
-
-    ret = ast_json_array_append(g_json_res, ast_json_deep_copy(j_tmp));
-    ast_json_unref(j_tmp);
-    j_tmp = NULL;
-    if(ret == -1)
+    if(j_tmp != NULL)
     {
-        ERROR("Could not append json. ret[%d]\n", ret);
-        return 0;
+        ast_json_unref(j_tmp);
     }
-    return 1;
+
+    return j_out;
+
+//    i = 0;
+//    j = 0;
+//    memset(tmp, 0x00, sizeof(tmp));
+//    j_out = ast_json_array_create();
+//    j_tmp = ast_json_object_create();
+//    for(i = 0; i < strlen(ami); i++)
+//    {
+//        if(ami[i] == '\r')
+//        {
+//            if(ami[i + 1] == '\n')
+//            {
+//
+//                ret = strlen(tmp);
+//                if(ret == 0)
+//                {
+//                    break;
+//                }
+//
+//                value = strdup(tmp);
+//                dump = value;
+//                key = strsep(&value, ":");
+//                if(key == NULL)
+//                {
+//                    free(dump);
+//                    continue;
+//                }
+//
+//                trim(key);
+//                trim(value);
+//                ast_json_object_set(j_tmp, key, ast_json_string_create(value));
+//
+//                free(dump);
+//                memset(tmp, 0x00, sizeof(tmp));
+//                j = 0;
+//                i++;
+//
+//                continue;
+//            }
+//        }
+//        tmp[j] = content[i];
+//        j++;
+//    }
+//
+//    if(flg_tmp == false)
+//    {
+//        value = strdup(tmp);
+//        dump = value;
+//        key = strsep(&value, ":");
+//        trim(key);
+//        trim(value);
+//        ast_json_object_set(j_tmp, key, ast_json_string_create(value));
+//
+//        free(dump);
+//        memset(tmp, 0x00, sizeof(tmp));
+//        j = 0;
+//        i++;
+//    }
+//
+//    dump = ast_json_dump_string(j_tmp);
+//    DEBUG("Parsing dump. dump[%s]\n", dump);
+//    ast_json_free(dump);
+//
+//    ret = ast_json_array_append(g_json_res, ast_json_deep_copy(j_tmp));
+//    ast_json_unref(j_tmp);
+//    j_tmp = NULL;
+//    if(ret == -1)
+//    {
+//        ERROR("Could not append json. ret[%d]\n", ret);
+//        return 0;
+//    }
+//    return 1;
 }
 
 /**
@@ -215,13 +317,13 @@ static struct ast_json* recv_parse(char* msg)
  */
 static void zmq_cmd_thread(void)
 {
-    char buffer[MAX_RCV_BUF_LEN];
-    zmq_data_t* zmq_data;
-    int size;
+    char*               recv_buf;
+    struct ast_json*    j_recv;
+    zmq_msg_t           recv_msg;
     int ret;
     int64_t opt;
     size_t opt_size;
-    char* tmp;
+    char* res;
 
     while(1)
     {
@@ -237,79 +339,53 @@ static void zmq_cmd_thread(void)
             usleep(100);    // just let's break
             continue;
         }
-        DEBUG("Recv thread. ret[%d], opt[%ld], sock[%p], buffer[%p]\n", ret, opt, g_app->sock_cmd, buffer);
+        ast_log(AST_LOG_DEBUG, "Recv thread. ret[%d], opt[%ld], sock[%p]\n", ret, opt, g_app->sock_cmd);
 
-        memset(buffer, 0x00, sizeof(buffer));
-        size = zmq_recv(g_app->sock_cmd, buffer, MAX_RCV_BUF_LEN - 1, 0);
-        if(size == -1)
-        {
-            ERROR("Could not get the cmd. err[%d:%s]\n", errno, strerror(errno));
-            continue;
-        }
-        else if(size >= (MAX_RCV_BUF_LEN -1))
-        {
-            DEBUG("Size over. size[%d]\n", size);
-            size = MAX_RCV_BUF_LEN - 1;
-        }
-        DEBUG("Recv cmd. size[%d]\n", size);
-
-        buffer[size] = '\0';
-        DEBUG("Recv cmd. msg[%s]\n", buffer);
-
-        zmq_data = calloc(1, sizeof(zmq_data_t));
-        zmq_data->zmq_sock = g_app->sock_cmd;
-
-        zmq_data->j_recv = recv_parse(buffer);
-        if(zmq_data->j_recv == NULL)
-        {
-            ERROR("Could not parse msg. msg[%s]\n", buffer);
-            zmq_send(zmq_data->zmq_sock, "[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]",
-                    strlen("[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]"), 0);
-            free(zmq_data);
-            continue;
-        }
-
-        if(g_json_res != NULL)
-        {
-            ast_json_unref(g_json_res);
-            g_json_res = NULL;
-        }
-
-        ret = zmq_cmd_handler(zmq_data);
-        if(ret != 1)
-        {
-            zmq_send(zmq_data->zmq_sock, "[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]",
-                    strlen("[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]"), 0);
-
-            ast_json_unref(zmq_data->j_recv);
-            free(zmq_data);
-            continue;
-        }
-
-        tmp = ast_json_dump_string(g_json_res);
-        DEBUG("Check dump. buf[%s]\n", tmp);
-        ast_json_unref(g_json_res);
-        g_json_res = NULL;
-        if(tmp == NULL)
-        {
-            zmq_send(zmq_data->zmq_sock, "[{\"Error\":\"Response\"},{\"Message\":\"Internal error.\"}]]",
-                    strlen("[{\"Error\":\"Response\"},{\"Message\":\"Internal error.\"}]]"), 0);
-
-            ast_json_unref(zmq_data->j_recv);
-            free(zmq_data);
-            continue;
-        }
-
-        ret = zmq_send(zmq_data->zmq_sock, tmp, strlen(tmp), 0);
+        ret = zmq_msg_init(&recv_msg);
         if(ret == -1)
         {
-            ERROR("Could not send message. err[%d:%s]\n", errno, strerror(errno));
+            ast_log(AST_LOG_ERROR, "Could not initiate recv zmq_msg. err[%d:%s]\n", errno, strerror(errno));
+            continue;
         }
-        DEBUG("set_hook_send_action. ret[%d], msg[%s]\n", ret, tmp);
 
-        ast_json_free(tmp);
-        ast_json_unref(zmq_data->j_recv);
-        free(zmq_data);
+        ret = zmq_msg_recv(&recv_msg, g_app->sock_cmd, 0);
+        if(ret == -1)
+        {
+            ast_log(AST_LOG_ERROR, "Could not receive data. err[%d:%s]\n", errno, strerror(errno));
+            zmq_msg_close(&recv_msg);
+            continue;
+        }
+
+        ret = zmq_msg_size(&recv_msg);
+        recv_buf = calloc(ret + 1, sizeof(char));
+        memcpy(recv_buf, zmq_msg_data(&recv_msg), ret);
+        zmq_msg_close(&recv_msg);
+
+        j_recv = recv_parse(recv_buf);
+        if(j_recv == NULL)
+        {
+            ERROR("Could not parse msg. msg[%s]\n", recv_buf);
+            zmq_send(g_app->sock_cmd, "[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]",
+                    strlen("[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]"), 0);
+            continue;
+        }
+        ast_free(recv_buf);
+
+        res = zmq_cmd_handler(j_recv);
+        if(res == NULL)
+        {
+            ret = asprintf(&res, "[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]");
+        }
+        ast_json_unref(j_recv);
+
+        ret = zmq_send(g_app->sock_cmd, res, strlen(res), 0);
+        if(ret == -1)
+        {
+            ast_log(AST_LOG_ERROR, "Could not send message. err[%d:%s]\n", errno, strerror(errno));
+        }
+        ast_log(AST_LOG_DEBUG, "Response cmd result. ret[%d], msg[%s]\n", ret, res);
+
+        ast_json_free(res);
     }
 }
 
@@ -368,13 +444,15 @@ static int _unload_module(void)
     zmq_close(g_app->sock_evt);
     zmq_term(g_app->zmq_ctx);
 
-    free(g_app->config_name);
-    free(g_app->addr_evt);
-    free(g_app->addr_cmd);
+    ast_free(g_app->config_name);
+    ast_free(g_app->addr_evt);
+    ast_free(g_app->addr_cmd);
 
     ast_manager_unregister_hook(g_app->evt_hook);
+    ast_manager_unregister_hook(&test_hook);
 
-    free(g_app);
+    ast_free(g_cmd_buf);
+    ast_free(g_app);
     return 1;
 }
 
@@ -384,8 +462,6 @@ static int unload_module(void)
     ast_log(LOG_NOTICE, "Unload res_zmq_module.\n");
 
     _unload_module();
-
-    ast_manager_unregister_hook(&test_hook);
 
     ret = ast_cli_unregister_multiple(cli_zmq_manager_evt, ARRAY_LEN(cli_zmq_manager_evt));
     ast_log(LOG_DEBUG, "unregister finished. ret[%d]\n", ret);
@@ -510,46 +586,45 @@ static int load_module(void)
  * zmq command msg handler
  * @param data
  */
-static int zmq_cmd_handler(zmq_data_t* zmq_data)
+//static char* zmq_cmd_handler(zmq_data_t* zmq_data)
+static char* zmq_cmd_handler(struct ast_json* j_recv)
 {
 
     int ret;
     struct ast_json* j_tmp;
+    struct ast_json* j_res;
     const char*     tmp_const;
     struct manager_custom_hook* hook;
+    char* res;
     char* tmp;
-    char str_cmd[10000];
+    char str_cmd[10240];
     struct ast_json_iter* j_iter;
 
-    DEBUG("zmq_cmd_handler!! data[%p]\n", zmq_data);
-
     // just for log
-    j_tmp = ast_json_deep_copy(zmq_data->j_recv);
-    tmp = ast_json_dump_string(j_tmp);
+    tmp = ast_json_dump_string(j_recv);
     if(tmp == NULL)
     {
-        ERROR("%s\n", "Could not parsing.");
-        return 0;
+        ast_log(AST_LOG_ERROR, "Could dump string.\n");
+        return NULL;
     }
-    DEBUG("ast_start_worker. msg[%s]\n", tmp);
+    ast_log(AST_LOG_DEBUG, "zmq_cmd_handler. msg[%s]\n", tmp);
     ast_json_free(tmp);
-    ast_json_unref(j_tmp);
 
     // Get action
-    j_tmp = ast_json_object_get(zmq_data->j_recv, "Action");
+    j_tmp = ast_json_object_get(j_recv, "Action");
     if(j_tmp == NULL)
     {
-        ERROR("%s\n", "Could not get the action.");
-        return 0;
+        ast_log(AST_LOG_ERROR, " not get the action.\n");
+        return NULL;
     }
 
     memset(str_cmd, 0x00, sizeof(str_cmd));
     sprintf(str_cmd, "Action: %s\n", ast_json_string_get(j_tmp));
     ast_json_unref(j_tmp);
 
-    for(j_iter = ast_json_object_iter(zmq_data->j_recv);
+    for(j_iter = ast_json_object_iter(j_recv);
             j_iter != NULL;
-            j_iter = ast_json_object_iter_next(zmq_data->j_recv, j_iter))
+            j_iter = ast_json_object_iter_next(j_recv, j_iter))
     {
         tmp_const = ast_json_object_iter_key(j_iter);
         ret = strcmp(tmp_const, "Action");
@@ -568,18 +643,34 @@ static int zmq_cmd_handler(zmq_data_t* zmq_data)
     hook = calloc(1, sizeof(struct manager_custom_hook));
     hook->file      = NULL;
     hook->helper    = &zmq_cmd_helper;
-
-    g_json_res = ast_json_array_create();
-    ret = ast_hook_send_action(hook, str_cmd);
-    if(ret != 0)
+    if(g_cmd_buf != NULL)
     {
-        ERROR("Could not hook. ret[%d], err[%d:%s]\n", ret, errno, strerror(errno));
-        free(hook);
-        return 0;
+        free(g_cmd_buf);
+        g_cmd_buf = NULL;
     }
 
+    ret = ast_hook_send_action(hook, str_cmd);
     free(hook);
-    return 1;
+    if(ret != 0)
+    {
+        ast_log(AST_LOG_ERROR, "Could not hook. ret[%d], err[%d:%s]\n", ret, errno, strerror(errno));
+        return NULL;
+    }
+    ast_log(AST_LOG_DEBUG, "End hook. ret[%d]\n", ret);
+
+    j_res = parse_msg(g_cmd_buf);
+
+    res = ast_json_dump_string(j_res);
+    DEBUG("Check dump. buf[%s]\n", res);
+    ast_json_unref(j_res);
+    if(res == NULL)
+    {
+        ast_log(AST_LOG_ERROR, "Could parse message.\n");
+        return NULL;
+    }
+    ast_log(AST_LOG_DEBUG, "Parse complete.\n");
+
+    return res;
 }
 
 /**

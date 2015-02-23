@@ -21,7 +21,7 @@ print "Connected!"
 #for request in range (1,10):
 #print "Sending request ", request,"..."
 #socket.send ("{\"Action\": \"SIPpeers\", \"ActionID\": \"125\"}")
-socket.send ("{\"Action\": \"SIPShowPeer\", \"Peer\":\"test1\"}")
+socket.send ("{\"Action\": \"SIPShowPeer\", \"Peer\":\"test-01\"}")
 #  Get the reply.
 message = socket.recv()
 print "Received reply [", message, "]"

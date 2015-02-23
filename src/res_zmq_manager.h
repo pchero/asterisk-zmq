@@ -24,12 +24,6 @@ struct ast_zmq_pthread_data {
     const char *name;
 };
 
-typedef struct zmq_data_t_
-{
-    void* zmq_sock;     //!< zmq socket
-    struct ast_json* j_recv;     //!< zmq recv data
-} zmq_data_t;
-
 /**
  @brief global
  */
