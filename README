@@ -32,8 +32,8 @@ INSTALLING:
 - cp build/zmq_manager.so ASTERISK_INSTALL_PATH/lib/asterisk/modules/
 
 USAGE:
-- Create a config file. See samples/zmq_manager.conf
--- cp samples/zmq_manager.conf /etc/asterisk
+- Create a config file. See conf/zmq_manager.conf
+-- cp conf/zmq_manager.conf /etc/asterisk
 - Add: load => res_zmq_manager.so to the modules.conf file
 -- echo "load => res_zmq_manager.so" >> /etc/asterisk/modules.conf
 
@@ -43,11 +43,12 @@ Asterisk CLI HELP:
 [evt address: tcp://*:968]
 
 
-TEST:
-- $ python src/test/get_sip.py      // Send {"Action": "SIPpeers"}
-- $ python src/test/get_sip_peer.py // Send {"Action":"SIPShowPeer","Peer":"test-01"}
+SAMPLES:
+- $ python samples/get_sip.py      // Send {"Action": "SIPpeers"}
+- $ python samples/get_sip_peer.py // Send {"Action":"SIPShowPeer","Peer":"test-01"}
+- $ python samples/evt_receiver.py // Receive Asterisk event script.
 
-SAMPLE:
+TEST:
 - Send AMI message in json style, to tcp://localhost967
 --Send 
 {"Action": "SIPpeers"}
