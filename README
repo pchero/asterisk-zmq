@@ -16,6 +16,7 @@ DESCRIPTION:
 - zmq_cmd designed for REQ-REP pattern. (For AMI Action)
 - zmq_evt designed for PUB-SUB pattern. (For AMI Event)
 - AMI should be enabled.(MUST)
+- If AMI disabled, no event message would be received.(only Action/Response working)
 
 
 DEPENDENCIES:
