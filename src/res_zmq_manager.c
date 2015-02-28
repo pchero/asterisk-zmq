@@ -504,8 +504,14 @@ static int load_module(void)
         return AST_MODULE_LOAD_FAILURE;
     }
 
-    DEBUG("%s\n", "Load correctly.");
+    ast_log(LOG_DEBUG, "Load correctly.\n");
     ret = ast_cli_register_multiple(cli_zmq_manager_evt, ARRAY_LEN(cli_zmq_manager_evt));
+
+    // Send load complete event.
+    // Let's break 2 seconds to waiting for connections.
+    sleep(2);
+    ast_log(LOG_DEBUG, "Sending load zmq module message. \n");
+    ret = zmq_send(g_app->sock_evt, "{\"Event\": \"LoadZmq\"}", strlen("{\"Event\": \"LoadZmq\"}"), 0);
 
     return AST_MODULE_LOAD_SUCCESS;
 }
