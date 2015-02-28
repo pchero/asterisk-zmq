@@ -15,11 +15,12 @@ DESCRIPTION:
 - Default address is (addr_cmd=tcp://*:967, addr_evt=tcp://*:968)
 - zmq_cmd designed for REQ-REP pattern. (For AMI Action)
 - zmq_evt designed for PUB-SUB pattern. (For AMI Event)
+- AMI should be enabled.(MUST)
 
 
 DEPENDENCIES:
 - zmq
-- jansson
+- compiled Asterisk with json support.
  
 REFERENCE:
 - Flavio [FlaPer87] Percoco Premoli <flaper87@flaper87.org>
@@ -36,6 +37,9 @@ USAGE:
 -- cp conf/zmq_manager.conf /etc/asterisk
 - Add: load => res_zmq_manager.so to the modules.conf file
 -- echo "load => res_zmq_manager.so" >> /etc/asterisk/modules.conf
+- AMI enable(MUST)
+-- edit /etc/asterisk/manager.conf.
+-- change "enabled = no" to "enabled = yes"
 
 Asterisk CLI HELP:
 - Asterisk*CLI> zmq manager status 

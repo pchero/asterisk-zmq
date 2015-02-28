@@ -77,7 +77,7 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
     char* tmp;
     int   ret;
 
-    ast_log(LOG_DEBUG, "AMI Event: len[%lu], category[%d], event[%s], content[%s]\n", strlen(content), category, event, content);
+    ast_log(LOG_DEBUG, "zmq_cmd_helper. len[%lu], category[%d], event[%s], content[%s]\n", strlen(content), category, event, content);
 
     if(g_cmd_buf == NULL)
     {
