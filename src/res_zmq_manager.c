@@ -173,78 +173,6 @@ static struct ast_json* parse_msg(char* msg)
     }
 
     return j_out;
-
-//    i = 0;
-//    j = 0;
-//    memset(tmp, 0x00, sizeof(tmp));
-//    j_out = ast_json_array_create();
-//    j_tmp = ast_json_object_create();
-//    for(i = 0; i < strlen(ami); i++)
-//    {
-//        if(ami[i] == '\r')
-//        {
-//            if(ami[i + 1] == '\n')
-//            {
-//
-//                ret = strlen(tmp);
-//                if(ret == 0)
-//                {
-//                    break;
-//                }
-//
-//                value = strdup(tmp);
-//                dump = value;
-//                key = strsep(&value, ":");
-//                if(key == NULL)
-//                {
-//                    free(dump);
-//                    continue;
-//                }
-//
-//                trim(key);
-//                trim(value);
-//                ast_json_object_set(j_tmp, key, ast_json_string_create(value));
-//
-//                free(dump);
-//                memset(tmp, 0x00, sizeof(tmp));
-//                j = 0;
-//                i++;
-//
-//                continue;
-//            }
-//        }
-//        tmp[j] = content[i];
-//        j++;
-//    }
-//
-//    if(flg_tmp == false)
-//    {
-//        value = strdup(tmp);
-//        dump = value;
-//        key = strsep(&value, ":");
-//        trim(key);
-//        trim(value);
-//        ast_json_object_set(j_tmp, key, ast_json_string_create(value));
-//
-//        free(dump);
-//        memset(tmp, 0x00, sizeof(tmp));
-//        j = 0;
-//        i++;
-//    }
-//
-//    dump = ast_json_dump_string(j_tmp);
-//    DEBUG("Parsing dump. dump[%s]\n", dump);
-//    ast_json_free(dump);
-//
-//    ret = ast_json_array_append(g_json_res, ast_json_deep_copy(j_tmp));
-//    ast_json_unref(j_tmp);
-//    j_tmp = NULL;
-//    if(ret == -1)
-//    {
-//        ERROR("Could not append json. ret[%d]\n", ret);
-//        return 0;
-//    }
-//    return 1;
 }
 
 /**
@@ -726,7 +654,6 @@ static int zmq_evt_helper(int category, const char *event, char *content)
     char*   value;
     char*   buf_send;
     char    tmp_line[4096];
-    char*   tmp;
     char*   tmp_org;
 
     DEBUG("zmq_evt_handler. category[%d], event[%s], content[%s]\n", category, event, content);
@@ -745,11 +672,10 @@ static int zmq_evt_helper(int category, const char *event, char *content)
             }
 
             DEBUG("Check value. tmp_line[%s]\n", tmp_line);
-            tmp = strdup(tmp_line);
-            tmp_org = tmp;
+            value = strdup(tmp_line);
+            tmp_org = value;
 
-            key = strsep(&tmp, ":");
-            value = strsep(&tmp, ":");
+            key = strsep(&value, ":");
 
             trim(key);
             trim(value);
