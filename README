@@ -41,6 +41,7 @@ USAGE:
 - AMI enable(MUST)
 -- edit /etc/asterisk/manager.conf.
 -- change "enabled = no" to "enabled = yes"
+- See samples.
 
 Asterisk CLI HELP:
 - Asterisk*CLI> zmq manager status 
@@ -49,9 +50,9 @@ Asterisk CLI HELP:
 
 
 SAMPLES:
-- $ python samples/get_sip.py      // Send {"Action": "SIPpeers"}
-- $ python samples/get_sip_peer.py // Send {"Action":"SIPShowPeer","Peer":"test-01"}
 - $ python samples/evt_receiver.py // Receive Asterisk event script.
+- $ python samples/cmd_sippeers.py.py
+- ...
 
 TEST:
 - Send AMI message in json style, to tcp://localhost967
