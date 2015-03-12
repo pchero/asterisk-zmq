@@ -17,6 +17,8 @@ DESCRIPTION:
 - zmq_evt designed for PUB-SUB pattern. (For AMI Event)
 - AMI should be enabled.(MUST)
 - If AMI disabled, no event message would be received.(only Action/Response working)
+- zmq_cmd send message as an json_array.
+- zmq_evt send message as an json_object.
 
 
 DEPENDENCIES:

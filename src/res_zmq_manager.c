@@ -81,11 +81,11 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
 
     if(g_cmd_buf == NULL)
     {
-        ret = asprintf(&tmp, "%s", content);
+        ret = ast_asprintf(&tmp, "%s", content);
     }
     else
     {
-        ret = asprintf(&tmp, "%s%s", g_cmd_buf, content);
+        ret = ast_asprintf(&tmp, "%s%s", g_cmd_buf, content);
     }
 
     if(g_cmd_buf != NULL)
@@ -93,7 +93,7 @@ static int zmq_cmd_helper(int category, const char *event, char *content)
         ast_free(g_cmd_buf);
     }
 
-    ret = asprintf(&g_cmd_buf, "%s", tmp);
+    ret = ast_asprintf(&g_cmd_buf, "%s", tmp);
     if(ret == -1)
     {
         ast_log(LOG_ERROR, "Could not allocate string. err[%d:%s]\n", errno, strerror(errno));
@@ -144,12 +144,12 @@ static struct ast_json* parse_msg(char* msg)
                 continue;
             }
 
-            value = strdup(tmp);
+            value = ast_strdup(tmp);
             dump = value;
             key = strsep(&value, ":");
             if(key == NULL)
             {
-                free(dump);
+                ast_free(dump);
                 continue;
             }
 
@@ -157,7 +157,7 @@ static struct ast_json* parse_msg(char* msg)
             trim(value);
             ast_json_object_set(j_tmp, key, ast_json_string_create(value));
 
-            free(dump);
+            ast_free(dump);
             memset(tmp, 0x00, sizeof(tmp));
             j = 0;
             i++;
@@ -285,7 +285,7 @@ static void zmq_cmd_thread(void)
         }
 
         ret = zmq_msg_size(&recv_msg);
-        recv_buf = calloc(ret + 1, sizeof(char));
+        recv_buf = ast_calloc(ret + 1, sizeof(char));
         memcpy(recv_buf, zmq_msg_data(&recv_msg), ret);
         zmq_msg_close(&recv_msg);
 
@@ -293,8 +293,8 @@ static void zmq_cmd_thread(void)
         if(j_recv == NULL)
         {
             ERROR("Could not parse msg. msg[%s]\n", recv_buf);
-            zmq_send(g_app->sock_cmd, "[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]",
-                    strlen("[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]"), 0);
+            zmq_send(g_app->sock_cmd, "[{\"Response\":\"Error\"},{\"Message\":\"Internal error.\"}]",
+                    strlen("[{\"Response\":\"Error\"},{\"Message\":\"Internal error.\"}]"), 0);
             continue;
         }
         ast_free(recv_buf);
@@ -302,7 +302,7 @@ static void zmq_cmd_thread(void)
         res = zmq_cmd_handler(j_recv);
         if(res == NULL)
         {
-            ret = asprintf(&res, "[{\"Response\":\"Error\"},{\"Message\":\"PeInternal error.\"}]");
+            ret = ast_asprintf(&res, "%s", "[{\"Response\":\"Error\"},{\"Message\":\"Internal error.\"}]");
         }
         ast_json_unref(j_recv);
 
@@ -407,10 +407,10 @@ static int _load_module(void)
     struct ast_flags config_flags = {0};
     int ret;
 
-    g_app = calloc(1, sizeof(struct app_));
+    g_app = ast_calloc(1, sizeof(struct app_));
 
     DEBUG("%s\n", "Loading zmq manager Config");
-    ret = asprintf(&g_app->config_name, "zmq_manager.conf");
+    ret = ast_asprintf(&g_app->config_name, "%s", "zmq_manager.conf");
     cfg = ast_config_load(g_app->config_name, config_flags);
     if ((cfg == NULL) || (cfg == CONFIG_STATUS_FILEINVALID))
     {
@@ -574,17 +574,17 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
     DEBUG("action command. command[%s]\n", str_cmd);
 
     // Set hook
-    hook = calloc(1, sizeof(struct manager_custom_hook));
+    hook = ast_calloc(1, sizeof(struct manager_custom_hook));
     hook->file      = NULL;
     hook->helper    = &zmq_cmd_helper;
     if(g_cmd_buf != NULL)
     {
-        free(g_cmd_buf);
+        ast_free(g_cmd_buf);
         g_cmd_buf = NULL;
     }
 
     ret = ast_hook_send_action(hook, str_cmd);
-    free(hook);
+    ast_free(hook);
     if(ret != 0)
     {
         ast_log(AST_LOG_ERROR, "Could not hook. ret[%d], err[%d:%s]\n", ret, errno, strerror(errno));
@@ -626,7 +626,7 @@ static int ast_zmq_start(void)
     ast_log(LOG_NOTICE, "Start zmq_cmd thread.\n");
 
     // evt sock
-    hook = calloc(1, sizeof(struct manager_custom_hook));
+    hook = ast_calloc(1, sizeof(struct manager_custom_hook));
     hook->file = __FILE__;
     hook->helper = &zmq_evt_helper;
     ast_manager_register_hook(hook);
@@ -678,7 +678,7 @@ static int zmq_evt_helper(int category, const char *event, char *content)
             }
 
             DEBUG("Check value. tmp_line[%s]\n", tmp_line);
-            value = strdup(tmp_line);
+            value = ast_strdup(tmp_line);
             tmp_org = value;
 
             key = strsep(&value, ":");
@@ -688,7 +688,7 @@ static int zmq_evt_helper(int category, const char *event, char *content)
             j_tmp = ast_json_string_create(value);
             ret = ast_json_object_set(j_out, key, j_tmp);
 
-            free(tmp_org);
+            ast_free(tmp_org);
             memset(tmp_line, 0x00, sizeof(tmp_line));
 
             j = 0;
