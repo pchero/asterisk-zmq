@@ -20,7 +20,7 @@ DESCRIPTION:
 
 
 DEPENDENCIES:
-- zmq
+- zmq(zeromq-3.2.5)
 - compiled Asterisk with json support.
  
 REFERENCE:
