@@ -121,6 +121,10 @@ static struct ast_json* parse_msg(char* msg)
     char* dump;
 
     ast_log(AST_LOG_DEBUG, "Parse ami message. msg[%s]\n", msg);
+    if(msg == NULL)
+    {
+        return ast_json_null();
+    }
 
     memset(tmp, 0x00, sizeof(tmp));
 
