@@ -149,6 +149,7 @@ static struct ast_json* parse_msg(char* msg)
             }
 
             value = ast_strdup(tmp);
+
             dump = value;
             key = strsep(&value, ":");
             if(key == NULL)
@@ -159,6 +160,7 @@ static struct ast_json* parse_msg(char* msg)
 
             trim(key);
             trim(value);
+            ast_log(AST_LOG_DEBUG, "Check value. str[%s], key[%s], value[%s]\n", tmp, key, value);
             ast_json_object_set(j_tmp, key, ast_json_string_create(value));
 
             ast_free(dump);
