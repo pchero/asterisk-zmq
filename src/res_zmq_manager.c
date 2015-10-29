@@ -271,7 +271,7 @@ static void zmq_cmd_thread(void)
             usleep(100);    // just let's break
             continue;
         }
-        ast_log(AST_LOG_DEBUG, "Recv thread. ret[%d], opt[%ld], sock[%p]\n", ret, opt, g_app->sock_cmd);
+        ast_log(AST_LOG_DEBUG, "Recv cmd thread. ret[%d]\n", ret);
 
         ret = zmq_msg_init(&recv_msg);
         if(ret == -1)
@@ -524,10 +524,8 @@ static int load_module(void)
  * zmq command msg handler
  * @param data
  */
-//static char* zmq_cmd_handler(zmq_data_t* zmq_data)
 static char* zmq_cmd_handler(struct ast_json* j_recv)
 {
-
     int ret;
     struct ast_json* j_tmp;
     struct ast_json* j_res;
@@ -558,7 +556,6 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
 
     memset(str_cmd, 0x00, sizeof(str_cmd));
     sprintf(str_cmd, "Action: %s\n", ast_json_string_get(j_tmp));
-    ast_json_unref(j_tmp);
 
     for(j_iter = ast_json_object_iter(j_recv);
             j_iter != NULL;
@@ -572,7 +569,6 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
         }
         j_tmp = ast_json_object_iter_value(j_iter);
         sprintf(str_cmd, "%s%s: %s\n", str_cmd, tmp_const, ast_json_string_get(j_tmp));
-        ast_json_unref(j_tmp);
     }
 
     DEBUG("action command. command[%s]\n", str_cmd);
