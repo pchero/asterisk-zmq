@@ -35,8 +35,8 @@ struct app_
 
     char* config_name;
     void* zmq_ctx;  //!< zmq context
-    void* sock_cmd; //!< zmq command socket.
-    void* sock_evt; //!< zmq event socket.
+    void* sock_cmd; //!< zmq command socket.(ZMQ_REP)
+    void* sock_evt; //!< zmq event socket.(ZMQ_PUB)
 
     struct manager_custom_hook* evt_hook;   ///< hook for event
 };
