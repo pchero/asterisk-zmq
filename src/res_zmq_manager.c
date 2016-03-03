@@ -225,7 +225,7 @@ static struct ast_json* recv_parse(char* msg)
 
     j_out = ast_json_load_buf(msg, strlen(msg), &error);
     if(j_out == NULL) {
-        DEBUG("Could not convert json. msg[%s], err[%d,%s]\n", msg, error.line, error.text);
+        ast_log(AST_LOG_VERBOSE, "Could not convert json. msg[%s], err[%d,%s]\n", msg, error.line, error.text);
         return NULL;
     }
     return j_out;
@@ -250,7 +250,7 @@ static void zmq_cmd_thread(void)
         opt_size = sizeof(opt);
         ret = zmq_getsockopt(g_app->sock_cmd, ZMQ_EVENTS, &opt, &opt_size);
         if(ret == -1) {
-            ERROR("Could not recv message. Err[%d]\n", ret);
+            ast_log(AST_LOG_ERROR, "Could not recv message. Err[%d]\n", ret);
             continue;
         }
 
@@ -280,7 +280,7 @@ static void zmq_cmd_thread(void)
 
         j_recv = recv_parse(recv_buf);
         if(j_recv == NULL) {
-            ERROR("Could not parse msg. msg[%s]\n", recv_buf);
+            ast_log(AST_LOG_ERROR, "Could not parse msg. msg[%s]\n", recv_buf);
             zmq_send(g_app->sock_cmd, "[{\"Response\":\"Error\"},{\"Message\":\"Internal error.\"}]",
                     strlen("[{\"Response\":\"Error\"},{\"Message\":\"Internal error.\"}]"), 0);
             continue;
@@ -392,7 +392,7 @@ static int _load_module(void)
 
     g_app = ast_calloc(1, sizeof(struct app_));
 
-    DEBUG("%s\n", "Loading zmq manager Config");
+    ast_log(AST_LOG_VERBOSE, "%s\n", "Loading zmq manager Config");
     ret = ast_asprintf(&g_app->config_name, "%s", "zmq_manager.conf");
     cfg = ast_config_load(g_app->config_name, config_flags);
     if ((cfg == NULL) || (cfg == CONFIG_STATUS_FILEINVALID)) {
@@ -406,18 +406,18 @@ static int _load_module(void)
     // cmd socket
     ret  = load_config_string(cfg, "global", "addr_cmd", &g_app->addr_cmd, "tcp://*:967");
     if(ret < 0) {
-        DEBUG("%s\n", "Could not load connection_string");
+        ast_log(AST_LOG_VERBOSE, "%s\n", "Could not load connection_string");
         return AST_MODULE_LOAD_FAILURE;
     }
-    DEBUG("cmd address. addr[%s]\n", ast_str_buffer(g_app->addr_cmd));
+    ast_log(AST_LOG_VERBOSE, "cmd address. addr[%s]\n", ast_str_buffer(g_app->addr_cmd));
 
     // evt socket
     ret  = load_config_string(cfg, "global", "addr_evt", &g_app->addr_evt, "tcp://*:968");
     if(ret < 0) {
-        DEBUG("%s\n", "Could not load connection_string");
+        ast_log(AST_LOG_VERBOSE, "%s\n", "Could not load connection_string");
         return AST_MODULE_LOAD_FAILURE;
     }
-    DEBUG("evt address. addr[%s]\n", ast_str_buffer(g_app->addr_evt));
+    ast_log(AST_LOG_VERBOSE, "evt address. addr[%s]\n", ast_str_buffer(g_app->addr_evt));
 
     ast_config_destroy(cfg);
 
@@ -426,7 +426,7 @@ static int _load_module(void)
     // Make cmd socket
     g_app->sock_cmd = zmq_socket(g_app->zmq_ctx, ZMQ_REP);
     if(g_app->sock_cmd == NULL) {
-        ERROR("Couldn't created the new socket [%s]\n", strerror(errno));
+        ast_log(AST_LOG_ERROR, "Couldn't created the new socket [%s]\n", strerror(errno));
         zmq_close (g_app->sock_cmd);
         zmq_term (g_app->zmq_ctx);
         return false;
@@ -434,7 +434,7 @@ static int _load_module(void)
 
     ret = zmq_bind(g_app->sock_cmd, ast_str_buffer(g_app->addr_cmd));
     if(ret == -1) {
-        ERROR("Couldn't bind [%s]\n", strerror(errno));
+        ast_log(AST_LOG_ERROR, "Couldn't bind [%s]\n", strerror(errno));
         zmq_close (g_app->sock_cmd);
         zmq_term (g_app->zmq_ctx);
         return false;
@@ -443,7 +443,7 @@ static int _load_module(void)
     // Make evt socket
     g_app->sock_evt = zmq_socket(g_app->zmq_ctx, ZMQ_PUB);
     if(g_app->sock_evt == NULL) {
-        ERROR("Couldn't created the evt socket [%s]\n", strerror(errno));
+        ast_log(AST_LOG_ERROR, "Couldn't created the evt socket [%s]\n", strerror(errno));
         zmq_close (g_app->sock_evt);
         zmq_term (g_app->zmq_ctx);
         return false;
@@ -451,13 +451,13 @@ static int _load_module(void)
 
     ret = zmq_bind(g_app->sock_evt, ast_str_buffer(g_app->addr_evt));
     if(ret == -1) {
-        ERROR("Couldn't bind [%s]\n", strerror(errno));
+        ast_log(AST_LOG_ERROR, "Couldn't bind [%s]\n", strerror(errno));
         zmq_close (g_app->sock_evt);
         zmq_term (g_app->zmq_ctx);
         return false;
     }
 
-    DEBUG("%s\n", "About to call ast_zmq_start");
+    ast_log(AST_LOG_VERBOSE, "%s\n", "About to call ast_zmq_start");
     ret = ast_zmq_start();
 
     return AST_MODULE_LOAD_SUCCESS;
@@ -474,7 +474,7 @@ static int load_module(void)
 
     ret = _load_module();
     if(ret != AST_MODULE_LOAD_SUCCESS) {
-        ERROR("Could not load module! ret[%d]\n", ret);
+        ast_log(AST_LOG_ERROR, "Could not load module! ret[%d]\n", ret);
         return AST_MODULE_LOAD_FAILURE;
     }
 
@@ -536,7 +536,7 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
         sprintf(str_cmd, "%s%s: %s\n", str_cmd, tmp_const, ast_json_string_get(j_tmp));
     }
 
-    DEBUG("action command. command[%s]\n", str_cmd);
+    ast_log(AST_LOG_VERBOSE, "action command. command[%s]\n", str_cmd);
 
     // Set hook
     hook = ast_calloc(1, sizeof(struct manager_custom_hook));
@@ -581,7 +581,7 @@ static int ast_zmq_start(void)
     // cmd sock
     ret = ast_pthread_create_background(&g_app->pth_cmd, NULL, (void*)&zmq_cmd_thread, NULL);
     if(ret > 0) {
-        ERROR("Unable to launch thread for action cmd. err[%s]\n", strerror(errno));
+        ast_log(AST_LOG_ERROR, "Unable to launch thread for action cmd. err[%s]\n", strerror(errno));
         return false;
     }
     ast_log(LOG_NOTICE, "Start zmq_cmd thread.\n");
@@ -622,7 +622,8 @@ static int zmq_evt_helper(int category, const char *event, char *content)
     char    tmp_line[4096];
     char*   tmp_org;
 
-    DEBUG("zmq_evt_handler. category[%d], event[%s], content[%s]\n", category, event, content);
+//    DEBUG("zmq_evt_handler. category[%d], event[%s], content[%s]\n", category, event, content);
+    ast_log(LOG_VERBOSE, "zmq_evt_handler. category[%d], event[%s], content[%s]\n", category, event, content);
     i = j = 0;
     memset(tmp_line, 0x00, sizeof(tmp_line));
 
@@ -634,7 +635,7 @@ static int zmq_evt_helper(int category, const char *event, char *content)
                 break;
             }
 
-            DEBUG("Check value. tmp_line[%s]\n", tmp_line);
+            ast_log(AST_LOG_VERBOSE, "Check value. tmp_line[%s]\n", tmp_line);
             value = ast_strdup(tmp_line);
             tmp_org = value;
 
@@ -658,7 +659,7 @@ static int zmq_evt_helper(int category, const char *event, char *content)
 
     buf_send = ast_json_dump_string(j_out);
     ret = zmq_send(g_app->sock_evt,  buf_send, strlen(buf_send), 0);
-    DEBUG("Send event. ret[%d], buf[%s]\n", ret, buf_send);
+    ast_log(AST_LOG_VERBOSE, "Send event. ret[%d], buf[%s]\n", ret, buf_send);
 
     ast_json_free(buf_send);
     ast_json_unref(j_out);
