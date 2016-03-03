@@ -8,8 +8,6 @@
 #ifndef SRC_RES_ZMQ_MANAGER_H_
 #define SRC_RES_ZMQ_MANAGER_H_
 
-#define DEBUG(fmt, args...) ast_log(AST_LOG_VERBOSE, "[0MQ Manager Debug]: "fmt, args);
-#define ERROR(fmt, args...) ast_log(LOG_ERROR, "[0MQ Manager Error]: "fmt, args);
 #define MAX_RCV_BUF_LEN 8192
 
 struct unload_string {
