@@ -7,7 +7,7 @@ INFO:
 - This moudule aims to replicate asterisk manager interface using zmq and json.
 - For now, it just support any json-type of message pass to ami.
 - This module has two sockets. One is for action&reply, and the other one is for eventy notify.
-- It tested with asterisk-13.2.0
+- It is asterisk-20.x compatible. For asterisk-13.x compatible, please use the asterisk-13 branch.
 
 DESCRIPTION:
 - ZMQ manager uses 2 zmq sockets.
@@ -24,7 +24,7 @@ DESCRIPTION:
 DEPENDENCIES:
 - zmq(zeromq-3.2.5)
 - compiled Asterisk with json support.
- 
+
 REFERENCE:
 - Flavio [FlaPer87] Percoco Premoli <flaper87@flaper87.org>
 
@@ -46,7 +46,7 @@ USAGE:
 - See samples.
 
 Asterisk CLI HELP:
-- Asterisk*CLI> zmq manager status 
+- Asterisk*CLI> zmq manager status
 [cmd address: tcp://*:967]
 [evt address: tcp://*:968]
 
@@ -58,7 +58,7 @@ SAMPLES:
 
 TEST:
 - Send AMI message in json style, to tcp://localhost967
---Send 
+--Send
 {"Action": "SIPpeers"}
 -- It will reply AMI response in json style.(Json array)
 [
@@ -132,7 +132,7 @@ TEST:
 
 ]
 
--- Send 
+-- Send
 {"Action":"SIPShowPeer","Peer":"test-01"}
 
 -- Response

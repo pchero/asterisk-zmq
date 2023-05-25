@@ -13,6 +13,8 @@
     #define AST_MODULE "zmq_manager"
 #endif
 
+#define AST_MODULE_SELF_SYM __internal_zmq_self
+
 #include <asterisk.h>
 #include <asterisk/module.h>
 #include <asterisk/cli.h>
@@ -31,15 +33,8 @@
 #include <zmq.h>
 #include <unistd.h>
 
-
-
-ASTERISK_FILE_VERSION(__FILE__, "$Revision: 338557 $")
-
-//static struct app_ g_app;
 struct app_* g_app = NULL;
-
-//static struct ast_json*  g_json_res = NULL;  //!< action cmd response(array)
-static char*             g_cmd_buf = NULL;  //!< action cmd buffer
+static char* g_cmd_buf = NULL;  //!< action cmd buffer
 
 static void zmq_cmd_thread(void);
 static void trim(char * s);
@@ -518,7 +513,7 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
     // Get action
     j_tmp = ast_json_object_get(j_recv, "Action");
     if(j_tmp == NULL) {
-        ast_log(AST_LOG_ERROR, " not get the action.\n");
+        ast_log(AST_LOG_ERROR, "Could not get the action.\n");
         return NULL;
     }
 
@@ -532,8 +527,13 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
         if(ret == 0) {
             continue;
         }
+
         j_tmp = ast_json_object_iter_value(j_iter);
-        sprintf(str_cmd, "%s%s: %s\n", str_cmd, tmp_const, ast_json_string_get(j_tmp));
+        ret = snprintf(str_cmd, sizeof(str_cmd), "%s%s: %s\n", str_cmd, tmp_const, ast_json_string_get(j_tmp));
+        if (ret > sizeof(str_cmd)) {
+            ast_log(AST_LOG_WARNING, "Command exceed max size. max_size: %ld\n", sizeof(str_cmd));
+            return NULL;
+        }
     }
 
     ast_log(AST_LOG_VERBOSE, "action command. command[%s]\n", str_cmd);
