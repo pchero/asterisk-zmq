@@ -33,11 +33,8 @@
 #include <zmq.h>
 #include <unistd.h>
 
-//static struct app_ g_app;
 struct app_* g_app = NULL;
-
-//static struct ast_json*  g_json_res = NULL;  //!< action cmd response(array)
-static char*             g_cmd_buf = NULL;  //!< action cmd buffer
+static char* g_cmd_buf = NULL;  //!< action cmd buffer
 
 static void zmq_cmd_thread(void);
 static void trim(char * s);
