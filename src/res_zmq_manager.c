@@ -499,7 +499,8 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
     char* res;
     char* tmp;
     char str_cmd[10240];
-    struct ast_json_iter* j_iter;
+    char str_tmp[10240];
+    struct ast_json_iter *j_iter;
 
     // just for log
     tmp = ast_json_dump_string(j_recv);
@@ -528,8 +529,12 @@ static char* zmq_cmd_handler(struct ast_json* j_recv)
             continue;
         }
 
+        // copy previous cmd
+        memset(str_tmp, 0x00, sizeof(str_tmp));
+        strncpy(str_tmp, str_cmd, sizeof(str_tmp));
+
         j_tmp = ast_json_object_iter_value(j_iter);
-        ret = snprintf(str_cmd, sizeof(str_cmd), "%s%s: %s\n", str_cmd, tmp_const, ast_json_string_get(j_tmp));
+        ret = snprintf(str_cmd, sizeof(str_cmd), "%s%s: %s\n", str_tmp, tmp_const, ast_json_string_get(j_tmp));
         if (ret > sizeof(str_cmd)) {
             ast_log(AST_LOG_WARNING, "Command exceed max size. max_size: %ld\n", sizeof(str_cmd));
             return NULL;
